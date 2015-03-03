@@ -120,11 +120,27 @@ def _local(devappserver2=None, configuration=None, options=None, wsgi_request_in
         os.environ = original_environ
 
 
+def get_auth_func():
+    logging.basicConfig(format='%(message)s')
+    logger = logging.getLogger(__name__)
+
+    GOOGLE_AUTH = os.environ.get('GOOGLE_AUTH')
+    if GOOGLE_AUTH:
+        try:
+            email, password = GOOGLE_AUTH.split(':')
+            logger.info(
+                'Using authentication credentials from environment variable GOOGLE_AUTH for account: {}'.format(email)
+            )
+            auth_func = lambda: (email, password)
+        except ValueError:
+            raise RuntimeError('$GOOGLE_AUTH must be of format `foo@example.com:password`')
+    else:
+        auth_func = lambda: (raw_input('Google Account Login: '), getpass.getpass('Password: '))
+    return auth_func
+
+
 @contextlib.contextmanager
 def _remote(configuration=None, remote_api_stub=None, apiproxy_stub_map=None, **kwargs):
-
-    def auth_func():
-        return raw_input('Google Account Login: '), getpass.getpass('Password: ')
 
     original_apiproxy = apiproxy_stub_map.apiproxy
 
@@ -139,7 +155,7 @@ def _remote(configuration=None, remote_api_stub=None, apiproxy_stub_map=None, **
     remote_api_stub.ConfigureRemoteApi(
         None,
         '/_ah/remote_api',
-        auth_func,
+        get_auth_func(),
         servername='{0}.appspot.com'.format(app_id),
         secure=True,
     )
